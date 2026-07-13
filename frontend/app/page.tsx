@@ -1,125 +1,124 @@
-import { Suspense } from "react";
-import { Box, Container, Grid, Paper, Stack, Typography } from "@mui/material";
-import Header from "@/components/Header";
-import Controls from "@/components/Controls";
-import StatTile from "@/components/StatTile";
-import RouteStatCard from "@/components/RouteStatCard";
-import CountChart from "@/components/CountChart";
-import VolumeChart from "@/components/VolumeChart";
-import RouteBreakdownChart from "@/components/RouteBreakdownChart";
-import RouteVolumePie from "@/components/RouteVolumePie";
-import RouteCountBar from "@/components/RouteCountBar";
-import { resolvePageData, type PageSearchParams } from "@/lib/pageData";
-import { formatCount, formatUsd } from "@/lib/format";
-import { ROUTE_LABEL, ROUTE_ORDER, routeColor, type Route } from "@/lib/palette";
+"use client";
 
-export default async function Page({ searchParams }: { searchParams: PageSearchParams }) {
-  const { window, granularity, network, testnetConfigured, error, vm } = await resolvePageData(searchParams);
+import { Suspense } from "react";
+import Header from "@/components/Header";
+import StatsRow from "@/components/StatsRow";
+import Card from "@/components/Card";
+import VolumeChart from "@/components/VolumeChart";
+import CountChart from "@/components/CountChart";
+import NetFlowChart from "@/components/NetFlowChart";
+import RouteBreakdown from "@/components/RouteBreakdown";
+import StatusDonut from "@/components/StatusDonut";
+import FinalityTime from "@/components/FinalityTime";
+import PopAnchoredRate from "@/components/PopAnchoredRate";
+import WhaleTable from "@/components/WhaleTable";
+import ChartSkeleton from "@/components/ChartSkeleton";
+import Footer from "@/components/Footer";
+import { useAnalyticsParams } from "@/lib/params";
+import { useAnalyticsSummary, useAvailableNetworks, useFinalityTimes, useWhaleTransfers } from "@/lib/hooks";
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+function Dashboard() {
+  const { window, granularity, network, setWindow, setNetwork } = useAnalyticsParams();
+
+  const summaryQuery = useAnalyticsSummary(network, window, granularity);
+  const finalityQuery = useFinalityTimes(network);
+  const whalesQuery = useWhaleTransfers(network);
+  const networksQuery = useAvailableNetworks();
+
+  const summary = summaryQuery.data;
+  const error = summaryQuery.error instanceof Error ? summaryQuery.error.message : null;
 
   return (
-    <Box component="main" sx={{ flex: 1, py: { xs: 3, sm: 5 } }}>
-      <Container maxWidth="lg">
-        <Stack spacing={4}>
-          <Header />
+    <div className="flex flex-col flex-1">
+      <Header
+        window={window}
+        network={network}
+        onWindowChange={setWindow}
+        onNetworkChange={setNetwork}
+        testnetConfigured={networksQuery.data?.testnet ?? false}
+      />
 
-          <Suspense fallback={null}>
-            <Controls
-              window={window}
-              granularity={granularity}
-              network={network}
-              testnetConfigured={testnetConfigured}
-            />
-          </Suspense>
+      <main className="flex-1 px-5 py-6">
+        {error && (
+          <div className="mb-6 border border-[var(--border)] bg-[var(--surface)] p-5 font-mono text-xs text-[var(--muted)]">
+            {error}
+          </div>
+        )}
 
-          {error && (
-            <Paper variant="outlined" sx={{ p: 3 }}>
-              <Typography color="text.secondary">{error}</Typography>
-            </Paper>
-          )}
+        {summaryQuery.isLoading || !summary ? (
+          <div className="mb-6">
+            <ChartSkeleton height={112} />
+          </div>
+        ) : (
+          <div className="mb-6">
+            <StatsRow summary={summary} finalityByRoute={finalityQuery.data?.finalityByRoute} window={window} />
+          </div>
+        )}
 
-          {vm && (
-            <>
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <StatTile
-                    label={`Transfers (${window.replace("_", " ").toLowerCase()})`}
-                    value={formatCount(vm.totalTransfers)}
-                    sparkline={vm.bucketStarts.map((_, i) =>
-                      ROUTE_ORDER.reduce((sum, r) => sum + vm.countByRoute[r][i], 0),
-                    )}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <StatTile
-                    label="USD volume (BTC + ETH)"
-                    value={formatUsd(vm.totalUsdVolume)}
-                    sparkline={vm.usdVolume.map((v) => v ?? 0)}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <StatTile
-                    label="Most-used route"
-                    value={vm.mostUsedRoute ? ROUTE_LABEL[vm.mostUsedRoute as Route] ?? vm.mostUsedRoute : "—"}
-                  />
-                </Grid>
-              </Grid>
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_1fr] gap-4">
+          <div className="flex flex-col gap-4">
+            <Card title="Volume (USD)">
+              {summaryQuery.isLoading || !summary ? <ChartSkeleton height={260} /> : (
+                <VolumeChart summary={summary} granularity={granularity} />
+              )}
+            </Card>
 
-              <Grid container spacing={2}>
-                {ROUTE_ORDER.map((route) => (
-                  <Grid key={route} size={{ xs: 12, sm: 6, md: 3 }}>
-                    <RouteStatCard
-                      label={ROUTE_LABEL[route]}
-                      color={routeColor(route, "light")}
-                      transferCount={vm.routeCountTotals[route]}
-                      usdVolume={vm.routeVolumeTotals[route]}
-                    />
-                  </Grid>
-                ))}
-              </Grid>
+            <Card title="Transaction Count">
+              {summaryQuery.isLoading || !summary ? <ChartSkeleton height={260} /> : (
+                <CountChart summary={summary} granularity={granularity} />
+              )}
+            </Card>
 
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Transaction count over time
-                </Typography>
-                <CountChart bucketStarts={vm.bucketStarts} countByRoute={vm.countByRoute} granularity={granularity} />
-              </Paper>
+            <Card title="Capital Flow" subtitle="Inflow vs outflow through Hemi tunnels">
+              {summaryQuery.isLoading || !summary ? <ChartSkeleton height={260} /> : (
+                <NetFlowChart summary={summary} granularity={granularity} />
+              )}
+            </Card>
 
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  USD volume over time
-                </Typography>
-                <VolumeChart bucketStarts={vm.bucketStarts} usdVolume={vm.usdVolume} granularity={granularity} />
-              </Paper>
+            {whalesQuery.isLoading || !whalesQuery.data ? (
+              <ChartSkeleton height={200} />
+            ) : (
+              <WhaleTable whales={whalesQuery.data.whales} />
+            )}
+          </div>
 
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper variant="outlined" sx={{ p: 3, height: "100%" }}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      Volume share by route
-                    </Typography>
-                    <RouteVolumePie routeVolumeTotals={vm.routeVolumeTotals} />
-                  </Paper>
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <Paper variant="outlined" sx={{ p: 3, height: "100%" }}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
-                      Transfers by route
-                    </Typography>
-                    <RouteCountBar routeCountTotals={vm.routeCountTotals} />
-                  </Paper>
-                </Grid>
-              </Grid>
+          <div className="flex flex-col gap-4">
+            {summaryQuery.isLoading || !summary ? (
+              <ChartSkeleton height={160} />
+            ) : (
+              <RouteBreakdown breakdown={summary.routeBreakdown} />
+            )}
 
-              <Paper variant="outlined" sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Route breakdown
-                </Typography>
-                <RouteBreakdownChart breakdown={vm.routeBreakdown} />
-              </Paper>
-            </>
-          )}
-        </Stack>
-      </Container>
-    </Box>
+            {summaryQuery.isLoading || !summary ? (
+              <ChartSkeleton height={220} />
+            ) : (
+              <StatusDonut stats={summary.stats} />
+            )}
+
+            {finalityQuery.isLoading || !finalityQuery.data ? (
+              <ChartSkeleton height={160} />
+            ) : (
+              <FinalityTime finalityByRoute={finalityQuery.data.finalityByRoute} />
+            )}
+
+            {summaryQuery.isLoading || !summary ? (
+              <ChartSkeleton height={160} />
+            ) : (
+              <PopAnchoredRate stats={summary.stats} />
+            )}
+          </div>
+        </div>
+      </main>
+
+      <Footer lastUpdated={summaryQuery.dataUpdatedAt || null} />
+    </div>
   );
 }

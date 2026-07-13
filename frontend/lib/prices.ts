@@ -12,6 +12,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { ASSET_DECIMALS } from "./assets";
 
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CACHE_DIR = path.join(process.cwd(), ".cache");
@@ -22,12 +23,6 @@ const HISTORICAL_CACHE_FILE = path.join(CACHE_DIR, "coingecko-historical.json");
 const ASSET_TO_COINGECKO_ID: Record<string, string> = {
   BTC: "bitcoin",
   ETH: "ethereum",
-};
-
-/** Atomic-unit decimals per asset, for converting to whole-coin amounts. */
-export const ASSET_DECIMALS: Record<string, number> = {
-  BTC: 8,
-  ETH: 18,
 };
 
 type HistoricalCache = Record<string, Record<string, number>>; // coingeckoId -> "YYYY-MM-DD" -> USD price

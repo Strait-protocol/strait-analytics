@@ -1,57 +1,86 @@
 /**
- * Shapes raw `analyticsSeries` / `routeBreakdown` GraphQL data plus CoinGecko
- * prices into the arrays the chart components render. Kept out of page.tsx so
- * the fetch-and-combine logic is testable independent of JSX.
- *
- * Fetches the full (unfiltered, all-route) dataset once; individual pages
- * (overview, per-tunnel) slice the parts of this model they need rather than
- * re-fetching with different route filters.
+ * Server-only: fetches analyticsSeries/routeBreakdown/stats from strait-api and
+ * shapes them, with CoinGecko USD conversion, into the payload the dashboard
+ * renders. Runs behind app/api/analytics/summary/route.ts so client components
+ * can poll it with React Query (the price cache in lib/prices.ts touches the
+ * filesystem, so this can't run in the browser).
  */
-import { getAnalyticsSeries, getRouteBreakdown, type Granularity, type Network, type TimeWindow } from "./strait";
+import { forwardGraphQL, type Network } from "./graphql";
+import { ANALYTICS_SERIES_QUERY, ROUTE_BREAKDOWN_QUERY, STATS_QUERY } from "./queries";
 import { getCurrentPrice, getHistoricalPrices, atomicToUsd } from "./prices";
-import { ROUTE_ORDER, type Route } from "./palette";
+import { ROUTE_ORDER, type Route } from "./colors";
+
+export type TimeWindow = "LAST_24H" | "LAST_7D" | "LAST_30D" | "ALL_TIME";
+export type Granularity = "DAY" | "WEEK" | "MONTH";
+
+interface AnalyticsBucket {
+  bucketStart: string;
+  route: string;
+  asset: string;
+  transferCount: number;
+  volume: string;
+}
+
+interface RouteBreakdownEntry {
+  route: string;
+  transferCount: number;
+  share: number;
+}
+
+export interface Stats {
+  totalTransfers: number;
+  initiated: number;
+  anchored: number;
+  proving: number;
+  finalized: number;
+  failed: number;
+  reorged: number;
+  popAnchored: number;
+}
 
 export interface AssetTotal {
   asset: string;
   transferCount: number;
-  /** Total USD volume for this asset, or null if it isn't priced yet (e.g. ERC-20s beyond BTC/ETH). */
   usdVolume: number | null;
 }
 
-export interface AnalyticsViewModel {
-  /** Chronological bucket labels (ISO bucketStart), one per x-axis tick. */
+export interface AnalyticsSummary {
   bucketStarts: string[];
-  /** Per-route transfer count aligned with `bucketStarts`. */
   countByRoute: Record<Route, number[]>;
-  /** Per-route USD volume aligned with `bucketStarts` (null entries = unpriced bucket). */
   usdVolumeByRoute: Record<Route, (number | null)[]>;
-  /** Total USD volume across all routes, aligned with `bucketStarts`. */
   usdVolume: (number | null)[];
-  routeBreakdown: { route: string; transferCount: number; share: number }[];
-  /** Window-total transfer count per route. */
+  routeBreakdown: RouteBreakdownEntry[];
   routeCountTotals: Record<Route, number>;
-  /** Window-total USD volume per route (null if nothing priceable moved on that route). */
   routeVolumeTotals: Record<Route, number | null>;
-  /** Per-route, per-asset totals — e.g. the ETH tunnel's ERC-20 breakdown. */
   assetTotalsByRoute: Record<Route, AssetTotal[]>;
   totalTransfers: number;
   totalUsdVolume: number | null;
   mostUsedRoute: string | null;
+  stats: Stats;
 }
 
 function dayKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export async function buildAnalyticsViewModel(
+export async function buildAnalyticsSummary(
   network: Network,
   window: TimeWindow,
   granularity: Granularity,
-): Promise<AnalyticsViewModel> {
-  const [buckets, breakdown] = await Promise.all([
-    getAnalyticsSeries(network, window, granularity),
-    getRouteBreakdown(network, window),
+): Promise<AnalyticsSummary> {
+  const [seriesData, breakdownData, statsData] = await Promise.all([
+    forwardGraphQL(network, ANALYTICS_SERIES_QUERY, { window, granularity }) as Promise<{
+      analyticsSeries: AnalyticsBucket[];
+    }>,
+    forwardGraphQL(network, ROUTE_BREAKDOWN_QUERY, { window }) as Promise<{
+      routeBreakdown: RouteBreakdownEntry[];
+    }>,
+    forwardGraphQL(network, STATS_QUERY) as Promise<{ stats: Stats }>,
   ]);
+
+  const buckets = seriesData.analyticsSeries;
+  const breakdown = breakdownData.routeBreakdown;
+  const stats = statsData.stats;
 
   const bucketStarts = Array.from(new Set(buckets.map((b) => b.bucketStart))).sort();
 
@@ -90,7 +119,6 @@ export async function buildAnalyticsViewModel(
   const usdVolume: (number | null)[] = bucketStarts.map(() => null);
   const usdVolumeKnown: boolean[] = bucketStarts.map(() => false);
 
-  // route -> asset -> { count, usd (null until first priced hit) }
   const assetAccum = new Map<Route, Map<string, { count: number; usd: number | null }>>();
   for (const route of ROUTE_ORDER) assetAccum.set(route, new Map());
 
@@ -122,8 +150,6 @@ export async function buildAnalyticsViewModel(
     }
   }
 
-  // Buckets with no priceable asset (e.g. only unresolved ERC-20 rows) stay null
-  // rather than showing as a misleading $0.
   for (let i = 0; i < usdVolume.length; i++) {
     if (!usdVolumeKnown[i]) usdVolume[i] = null;
     for (const route of ROUTE_ORDER) {
@@ -172,5 +198,6 @@ export async function buildAnalyticsViewModel(
     totalTransfers,
     totalUsdVolume,
     mostUsedRoute,
+    stats,
   };
 }

@@ -1,50 +1,59 @@
 "use client";
 
-import { Box, Typography, useTheme } from "@mui/material";
-import { LineChart } from "@mui/x-charts/LineChart";
-import { ROUTE_LABEL, ROUTE_ORDER, routeColor, type Route } from "@/lib/palette";
-import { formatBucketLabel } from "@/lib/format";
-import type { Granularity } from "@/lib/strait";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import type { AnalyticsSummary, Granularity } from "@/lib/analytics";
+import { OUTFLOW_ROUTES, ROUTE_ORDER, routeColor, routeLabel, type Route } from "@/lib/colors";
+import { formatCount } from "@/lib/format";
+import { transformSeriesToChart } from "@/lib/transform";
+import EmptyChart from "./EmptyChart";
 
-export default function CountChart({
-  bucketStarts,
-  countByRoute,
-  granularity,
-  routes = ROUTE_ORDER,
-}: {
-  bucketStarts: string[];
-  countByRoute: Record<Route, number[]>;
-  granularity: Granularity;
-  routes?: readonly Route[];
-}) {
-  const theme = useTheme();
-  const mode = theme.palette.mode;
+const AXIS_STYLE = {
+  tick: { fill: "#4A5060", fontFamily: "var(--font-mono)", fontSize: 10 },
+  axisLine: { stroke: "#1A1D24" },
+  tickLine: false,
+};
 
-  if (bucketStarts.length === 0) {
-    return (
-      <Box sx={{ py: 6, textAlign: "center" }}>
-        <Typography color="text.secondary">No transfers in this window yet.</Typography>
-      </Box>
-    );
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-[var(--surface2)] border border-[var(--border2)] px-4 py-3 font-mono text-[11px]">
+      <div className="text-[var(--muted)] mb-2">{label}</div>
+      {payload.map((p) => (
+        <div key={p.name} style={{ color: routeColor(p.name) }} className="mb-1">
+          {routeLabel(p.name)}: {formatCount(p.value)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function CountChart({ summary, granularity }: { summary: AnalyticsSummary; granularity: Granularity }) {
+  if (summary.bucketStarts.length === 0) {
+    return <EmptyChart message="No transfers in this window yet" height={260} />;
   }
 
-  const xLabels = bucketStarts.map((b) => formatBucketLabel(b, granularity));
+  const data = transformSeriesToChart(summary, granularity, "count");
 
   return (
-    <LineChart
-      height={280}
-      xAxis={[{ scaleType: "point", data: xLabels }]}
-      series={routes.map((route) => ({
-        id: route,
-        label: ROUTE_LABEL[route],
-        data: countByRoute[route],
-        area: true,
-        stack: "total",
-        color: routeColor(route, mode),
-        showMark: false,
-      }))}
-      slotProps={{ legend: { direction: "horizontal", position: { vertical: "top", horizontal: "center" } } }}
-      grid={{ horizontal: true }}
-    />
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+        <CartesianGrid stroke="#1A1D24" strokeOpacity={0.5} strokeDasharray="2 4" vertical={false} />
+        <XAxis dataKey="date" {...AXIS_STYLE} />
+        <YAxis {...AXIS_STYLE} tickFormatter={(v: number) => formatCount(v)} width={40} />
+        <Tooltip content={<CustomTooltip />} />
+        {ROUTE_ORDER.map((route) => (
+          <Line
+            key={route}
+            type="monotone"
+            dataKey={route}
+            name={route}
+            stroke={routeColor(route)}
+            strokeWidth={1.5}
+            strokeDasharray={OUTFLOW_ROUTES.includes(route as Route) ? "4 2" : undefined}
+            dot={false}
+          />
+        ))}
+      </LineChart>
+    </ResponsiveContainer>
   );
 }

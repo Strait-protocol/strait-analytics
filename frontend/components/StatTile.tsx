@@ -1,54 +1,38 @@
-"use client";
-
-import { Box, Paper, Typography, useTheme } from "@mui/material";
-import { SparkLineChart } from "@mui/x-charts/SparkLineChart";
-
 export default function StatTile({
   label,
   value,
-  sparkline,
-  color,
+  sub,
+  delta,
+  accentColor,
+  bordered = true,
 }: {
   label: string;
   value: string;
-  sparkline?: number[];
-  color?: string;
+  sub?: string;
+  delta?: number | null;
+  accentColor?: string;
+  bordered?: boolean;
 }) {
-  const theme = useTheme();
-  const hasSparkline = sparkline && sparkline.length > 1 && sparkline.some((v) => v !== 0);
+  const deltaLabel = delta != null ? `${delta >= 0 ? "▲ +" : "▼ "}${delta.toFixed(1)}%` : null;
 
   return (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2.5,
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-        minWidth: 0,
-      }}
+    <div
+      className={`flex-1 min-w-[160px] bg-[var(--surface)] px-[22px] py-5 ${bordered ? "border-r border-[var(--border)]" : ""}`}
+      style={accentColor ? { borderTop: `2px solid ${accentColor}` } : undefined}
     >
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-      <Box sx={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 2 }}>
-        <Typography variant="h4" component="p" sx={{ fontWeight: 600, lineHeight: 1.1 }}>
-          {value}
-        </Typography>
-        {hasSparkline && (
-          <Box sx={{ width: 96, height: 36, flexShrink: 0 }}>
-            <SparkLineChart
-              data={sparkline}
-              height={36}
-              width={96}
-              curve="linear"
-              color={color ?? theme.palette.primary.main}
-              showHighlight={false}
-              showTooltip={false}
-            />
-          </Box>
+      <div className="font-mono text-[10px] tracking-[1px] text-[var(--muted)] uppercase mb-2.5">{label}</div>
+      <div className="font-mono text-[30px] font-bold leading-none text-[var(--text)]">{value}</div>
+      <div className="flex justify-between mt-1.5">
+        <span className="font-mono text-[10px] text-[var(--muted)]">{sub}</span>
+        {deltaLabel && (
+          <span
+            className="font-mono text-[10px]"
+            style={{ color: delta! >= 0 ? "var(--green)" : "var(--red)" }}
+          >
+            {deltaLabel}
+          </span>
         )}
-      </Box>
-    </Paper>
+      </div>
+    </div>
   );
 }
