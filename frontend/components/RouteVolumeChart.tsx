@@ -2,28 +2,34 @@
 
 import { Box, Typography, useTheme } from "@mui/material";
 import { LineChart } from "@mui/x-charts/LineChart";
-import { ROUTE_LABEL, ROUTE_ORDER, routeColor, type Route } from "@/lib/palette";
-import { formatBucketLabel } from "@/lib/format";
+import { ROUTE_LABEL, routeColor, type Route } from "@/lib/palette";
+import { formatBucketLabel, formatUsd } from "@/lib/format";
 import type { Granularity } from "@/lib/strait";
 
-export default function CountChart({
+/** Per-route USD volume over time — unlike the overview's single total series,
+ * this shows each route's contribution separately so direction/route volume
+ * can be compared directly. */
+export default function RouteVolumeChart({
   bucketStarts,
-  countByRoute,
+  usdVolumeByRoute,
   granularity,
-  routes = ROUTE_ORDER,
+  routes,
 }: {
   bucketStarts: string[];
-  countByRoute: Record<Route, number[]>;
+  usdVolumeByRoute: Record<Route, (number | null)[]>;
   granularity: Granularity;
-  routes?: readonly Route[];
+  routes: readonly Route[];
 }) {
   const theme = useTheme();
   const mode = theme.palette.mode;
 
-  if (bucketStarts.length === 0) {
+  const hasData = routes.some((route) => usdVolumeByRoute[route]?.some((v) => v != null));
+  if (bucketStarts.length === 0 || !hasData) {
     return (
       <Box sx={{ py: 6, textAlign: "center" }}>
-        <Typography color="text.secondary">No transfers in this window yet.</Typography>
+        <Typography color="text.secondary">
+          No USD-priceable volume in this window yet (BTC/ETH only for now).
+        </Typography>
       </Box>
     );
   }
@@ -34,14 +40,15 @@ export default function CountChart({
     <LineChart
       height={280}
       xAxis={[{ scaleType: "point", data: xLabels }]}
+      yAxis={[{ valueFormatter: (v: number) => formatUsd(v) }]}
       series={routes.map((route) => ({
         id: route,
         label: ROUTE_LABEL[route],
-        data: countByRoute[route],
+        data: usdVolumeByRoute[route].map((v) => v ?? 0),
         area: true,
-        stack: "total",
         color: routeColor(route, mode),
         showMark: false,
+        valueFormatter: (v: number | null) => formatUsd(v),
       }))}
       slotProps={{ legend: { direction: "horizontal", position: { vertical: "top", horizontal: "center" } } }}
       grid={{ horizontal: true }}
