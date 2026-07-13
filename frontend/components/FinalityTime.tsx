@@ -11,7 +11,7 @@ export default function FinalityTime({ finalityByRoute }: { finalityByRoute: Rec
   const max = entries.length > 0 ? Math.max(...entries.map((e) => e.seconds)) : 0;
 
   return (
-    <Card title="Avg Finality Time" subtitle="Hemi → ETH includes the 1-day OP Stack challenge window">
+    <Card title="Median Finality Time" subtitle="Hemi → ETH includes the 1-day OP Stack challenge window">
       {entries.length === 0 ? (
         <EmptyChart message="No finalized transfers yet" height={100} />
       ) : (

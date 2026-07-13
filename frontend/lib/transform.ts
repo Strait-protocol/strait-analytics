@@ -70,3 +70,11 @@ export function computeDelta(series: (number | null)[]): number | null {
   if (before === 0) return after === 0 ? null : 100;
   return ((after - before) / before) * 100;
 }
+
+/** Median, not mean — small samples (e.g. per-route finality times) are easily
+ * skewed by a handful of outliers; median reflects the "typical" case. */
+export function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}

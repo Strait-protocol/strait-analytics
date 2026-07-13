@@ -2,7 +2,7 @@ import StatTile from "./StatTile";
 import type { AnalyticsSummary, TimeWindow } from "@/lib/analytics";
 import type { Route } from "@/lib/colors";
 import { formatCount, formatDuration, formatUsd } from "@/lib/format";
-import { computeDelta } from "@/lib/transform";
+import { computeDelta, median } from "@/lib/transform";
 
 const WINDOW_LABEL: Record<TimeWindow, string> = {
   LAST_24H: "last 24 hours",
@@ -22,8 +22,10 @@ export default function StatsRow({
 }) {
   const inFlight = summary.stats.initiated + summary.stats.anchored + summary.stats.proving;
 
+  // Median of the per-route medians — consistent with FinalityTime, which
+  // shows each route's median (not mean) to avoid outliers skewing the number.
   const finalityValues = finalityByRoute ? Object.values(finalityByRoute).filter((v): v is number => v != null) : [];
-  const avgFinality = finalityValues.length > 0 ? finalityValues.reduce((s, v) => s + v, 0) / finalityValues.length : null;
+  const medianFinality = finalityValues.length > 0 ? median(finalityValues) : null;
 
   const volumeDelta = computeDelta(summary.usdVolume);
   // Total transfer count per bucket, summed across routes — used for the transfers delta.
@@ -54,8 +56,8 @@ export default function StatsRow({
         accentColor="var(--green)"
       />
       <StatTile
-        label="Avg Finality"
-        value={formatDuration(avgFinality)}
+        label="Median Finality"
+        value={formatDuration(medianFinality)}
         sub="source → dest"
         accentColor="var(--hemi)"
       />
