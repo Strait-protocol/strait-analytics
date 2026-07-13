@@ -48,10 +48,10 @@ export default function StatsRow({
         delta={transfersDelta}
       />
       <StatTile
-        label="BTC Anchored"
-        value={formatCount(summary.stats.popAnchored)}
-        sub="Bitcoin-final (all time)"
-        accentColor="var(--btc)"
+        label="Finalized"
+        value={formatCount(summary.stats.finalized)}
+        sub={WINDOW_LABEL[window]}
+        accentColor="var(--green)"
       />
       <StatTile
         label="Avg Finality"

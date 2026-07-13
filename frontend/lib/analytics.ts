@@ -75,7 +75,7 @@ export async function buildAnalyticsSummary(
     forwardGraphQL(network, ROUTE_BREAKDOWN_QUERY, { window }) as Promise<{
       routeBreakdown: RouteBreakdownEntry[];
     }>,
-    forwardGraphQL(network, STATS_QUERY) as Promise<{ stats: Stats }>,
+    forwardGraphQL(network, STATS_QUERY, { window }) as Promise<{ stats: Stats }>,
   ]);
 
   const buckets = seriesData.analyticsSeries;

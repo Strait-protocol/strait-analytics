@@ -29,8 +29,8 @@ export const ROUTE_BREAKDOWN_QUERY = `
 `;
 
 export const STATS_QUERY = `
-  query Stats {
-    stats {
+  query Stats($window: TimeWindow) {
+    stats(window: $window) {
       totalTransfers
       initiated
       anchored

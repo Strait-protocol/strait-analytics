@@ -112,7 +112,7 @@ function Dashboard() {
             {summaryQuery.isLoading || !summary ? (
               <ChartSkeleton height={160} />
             ) : (
-              <PopAnchoredRate stats={summary.stats} />
+              <PopAnchoredRate stats={summary.stats} window={window} />
             )}
           </div>
         </div>
