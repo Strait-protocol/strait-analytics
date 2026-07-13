@@ -186,3 +186,5 @@ decoupling goal.
    (e.g. Vercel) or something else — affects whether the price cache can be a local
    SQLite file (fine for a single long-lived server) or needs to be a hosted store
    (needed if deployed to a serverless/edge platform with no persistent disk).
+
+STRAIT_API_URL=https://strait-indexer.onrender.com/graphql
